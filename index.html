@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FOX OS — Babylon.js Prototype 0.2</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#03070b;font-family:Arial,sans-serif}
+#renderCanvas{width:100%;height:100%;touch-action:none;display:block}
+#hud{position:fixed;z-index:5;left:14px;top:14px;max-width:390px;padding:15px 17px;border:1px solid #4d718d;border-radius:15px;background:rgba(3,9,15,.88);color:#e9f7ff;backdrop-filter:blur(8px)}
+#hud h1{margin:0;font-size:22px;letter-spacing:3px}
+#hud p{font-size:12px;line-height:1.45;color:#b8ccdc}
+button{border:0;border-radius:9px;padding:10px 13px;margin:3px;font-weight:bold;cursor:pointer}
+#status{margin-top:8px;color:#82ddff;font-size:12px}
+#help{position:fixed;z-index:4;bottom:15px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:10px;background:#03090fd0;color:#c9d8e5;font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<div id="hud">
+<h1>FOX OS</h1>
+<p><b>BABYLON.JS WEBXR PROTOTYPE 0.2</b></p>
+<p>Temporary facility test build. Test the core layout before final BONELAB assets.</p>
+<button id="tablet">FOX TABLET</button>
+<button id="lock">LOCKDOWN</button>
+<button id="scan">EYE SCAN</button>
+<div id="status">SYSTEM ONLINE · POWER 94% · SECURITY NORMAL</div>
+</div>
+<div id="help">Desktop: click + WASD. Quest: use the Babylon.js VR button, controllers, laser pointer and teleport.</div>
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script>
+const canvas=document.getElementById("renderCanvas");
+const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:false,stencil:true});
+const scene=new BABYLON.Scene(engine);
+scene.clearColor=new BABYLON.Color4(.01,.02,.03,1);
+scene.fogMode=BABYLON.Scene.FOGMODE_EXP2; scene.fogDensity=.012;
+
+const camera=new BABYLON.UniversalCamera("desktopCamera",new BABYLON.Vector3(0,1.7,10),scene);
+camera.setTarget(new BABYLON.Vector3(0,1.7,0)); camera.attachControl(canvas,true); camera.speed=.16;
+
+const hemi=new BABYLON.HemisphericLight("hemi",new BABYLON.Vector3(0,1,0),scene);hemi.intensity=1.1;
+const sun=new BABYLON.DirectionalLight("sun",new BABYLON.Vector3(-.3,-1,.2),scene);sun.position=new BABYLON.Vector3(8,12,6);sun.intensity=1.4;
+
+function mat(name,color,metal=.15,rough=.5){
+ const m=new BABYLON.StandardMaterial(name,scene);m.diffuseColor=BABYLON.Color3.FromHexString(color);m.specularColor=new BABYLON.Color3(.2,.2,.2);return m;
+}
+const floorMat=mat("Floor","#111a21"), wallMat=mat("Walls","#18242e"), techMat=mat("Tech","#263947");
+const cyan=mat("FOX Cyan","#26bfe8",.4,.3), dark=mat("Dark","#091219"), red=mat("Alert","#c63a3a");
+
+function box(name,pos,size,material=techMat){
+ const m=BABYLON.MeshBuilder.CreateBox(name,{width:size[0],height:size[1],depth:size[2]},scene);
+ m.position=new BABYLON.Vector3(...pos);m.material=material;return m;
+}
+function cyl(name,pos,r,h,material=cyan){
+ const m=BABYLON.MeshBuilder.CreateCylinder(name,{diameter:r*2,height:h,tessellation:24},scene);
+ m.position=new BABYLON.Vector3(...pos);m.material=material;return m;
+}
+function label(text,pos){
+ const plane=BABYLON.MeshBuilder.CreatePlane("label",{width:4,height:.72},scene);
+ plane.position=new BABYLON.Vector3(...pos);
+ const dt=new BABYLON.DynamicTexture("labelTexture",{width:1024,height:180},scene,true);
+ dt.hasAlpha=true;dt.drawText(text,512,112,"bold 48px Arial","#e9f9ff","#06131b",true,true);
+ const mm=new BABYLON.StandardMaterial("labelMat",scene);mm.diffuseTexture=dt;mm.emissiveColor=new BABYLON.Color3(.2,.7,1);mm.backFaceCulling=false;plane.material=mm;return plane;
+}
+function status(t){document.getElementById("status").textContent="SYSTEM: "+t}
+
+box("Floor",[0,-.1,0],[24,.2,30],floorMat);
+box("Back",[0,5,-12],[24,10,.3],wallMat);box("Left",[-12,5,0],[.3,10,24],wallMat);box("Right",[12,5,0],[.3,10,24],wallMat);
+label("FOX OS // TEST FACILITY",[0,6,-11.7]);
+
+// Core
+box("CoreRoom",[0,2,-5],[5,4,4]);cyl("FOX_CORE",[0,2,-5],1.15,2.8,cyan);label("FOX CORE",[0,4.5,-5]);
+for(let i=0;i<3;i++)cyl("CoreRing",[0,2,-5],1.45+i*.18,.07,cyan).rotation.x=Math.PI/2;
+
+// Workshop
+box("Workbench",[-6,1,2],[7,2,.9]);label("WORKSHOP",[-6,3.15,2]);
+for(let x=-8;x<=-4;x+=1)cyl("Tool",[x,2.1,2],.17,.8,cyan);
+
+// Security
+box("SecurityDesk",[6,1,4],[7,2,1]);label("SECURITY",[6,3.15,4]);
+
+// Smart door
+let door=box("SmartDoor",[0,2,3],[3.5,4,.35],techMat);label("SMART DOOR",[0,4.8,3]);
+door.metadata={open:false};
+
+// Tablet
+box("TabletStand",[-6,1,-4],[2,.3,1]);box("FOX_TABLET",[-6,1.4,-4],[1.5,.12,1],dark);label("FOX TABLET",[-6,2.55,-4]);
+
+// Hangar + temporary rover
+box("HangarPad",[6,0,-5],[8,.1,7]);box("TEMP FOX ROVER",[6,1,-5],[3,1.3,4],techMat);label("HANGAR // TEMP ROVER",[6,3,-5]);
+
+// Lab
+box("LabTable",[0,1,9],[8,.7,2]);label("ANALYSIS LAB",[0,3,9]);
+for(let x=-3;x<=3;x+=1.5)cyl("Sample",[x,1.8,9],.18,.5,cyan);
+
+// Restricted
+box("SecretDoor",[0,2,12],[4,4,.3],dark);label("FOXBIN // RESTRICTED",[0,4.6,11.7]);
+
+// XR
+let xr=null;
+(async()=>{
+ try{
+   xr=await scene.createDefaultXRExperienceAsync({
+     floorMeshes:[scene.getMeshByName("Floor")],
+     disableTeleportation:false,
+     optionalFeatures:true
+   });
+   status("WEBXR READY · CONTROLLERS + TELEPORT ONLINE");
+ }catch(e){
+   console.warn(e);
+   status("WEBXR NOT AVAILABLE IN THIS BROWSER");
+ }
+})();
+
+// Interaction: pointer/click + controller laser selection.
+function hitAction(mesh){
+ if(mesh===door){
+   mesh.metadata.open=!mesh.metadata.open;
+   mesh.scaling.y=mesh.metadata.open?.08:1;
+   status("SMART DOOR: "+(mesh.metadata.open?"OPEN":"CLOSED"));
+ }
+}
+scene.onPointerObservable.add(info=>{
+ if(info.type===BABYLON.PointerEventTypes.POINTERPICK){
+   const p=info.pickInfo;
+   if(p.hit && p.pickedMesh) hitAction(p.pickedMesh);
+ }
+});
+
+document.getElementById("lock").onclick=()=>{
+ const locked=document.body.dataset.locked!=="1";document.body.dataset.locked=locked?"1":"0";
+ status(locked?"LOCKDOWN LEVEL 3 · SECURITY SEALED":"SECURITY NORMAL");
+ scene.clearColor=locked?new BABYLON.Color4(.12,.01,.01,1):new BABYLON.Color4(.01,.02,.03,1);
+};
+document.getElementById("tablet").onclick=()=>status("FOX TABLET OPEN · FACILITY ONLINE · POWER 94%");
+document.getElementById("scan").onclick=()=>status("EYE SCAN · OBJECT CLASSIFIED · TEMPORARY PROTOTYPE");
+
+engine.runRenderLoop(()=>scene.render());
+addEventListener("resize",()=>engine.resize());
+</script>
+</body></html>
